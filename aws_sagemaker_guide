@@ -1,0 +1,139 @@
+[AWS SageMaker] 
+
+1. Amazon SageMaker 콘솔 열기 
+- 검색창에 SageMaker를 입력하고 Amazon SageMaker를 선택해서 서비스 콘솔을 연다.
+
+2. Amazon SageMaker 노트북 인스턴스 생성 
+- 노트북 인스턴스 생성 페이지에서 [노트북 인스턴스 이름] 필드에 이름을 입력 
+- 노트북 인스턴스 유형: ml.t2.medium 
+- 노트북 인스턴스가 데이터에 엑세스하고 안전하게 Amazon S3에 데이터를 업로드하도록 허용하려면 IAM 역할을 지정해야 함 
+
+- [IAM 역할] 필드에서 [새 역할 생성]을 선택하고 아무 S3 버킷 선택  -> Amazon SageMaker 인스턴스가 계정에 있는 모든 S3 버킷에 접근하게 됨 
+- 역할 생성 선택 
+- pending -> InService 상태가 될 때까지 기다림 
+
+3. 데이터 준비
+- 상태가 InService로 전환되면 MySageMakerInstance를 선택하고, Jupyter 열기를 선택
+- Jupyter가 열리면 [파일] 탭에서 [새로 만들기]를 선택한 다음, conda_python3 선택
+- 데이터를 준비하고, 기계 학습 모델을 배포하려면 Jupyter Notebook 환경에 몇 가지 라이브러리를 가져와서 환경변수를 정의해야 함 
+
+1) Import Libraries 
+$ import boto3, re, sys, math, json, os, sagemaker, urllib.request
+$ from sagemaker import get_execution_role
+$ import numpy as np                                
+$ import pandas as pd                               
+$ import matplotlib.pyplot as plt                   
+$ from sagemaker.amazon.amazon_estimator import get_image_uri   # hands-on에 정의된 containers에는 아시아 리전이 없음  -> get_image_url 함수를 사용하여 컨테이너 정의할 예정 
+
+$ from IPython.display import Image                 
+$ from IPython.display import display               
+$ from time import gmtime, strftime                 
+$ from sagemaker.predictor import csv_serializer  
+
+2) Define IAM role  -> 그대로 사용시 오류 발생 
+$ role = get_execution_role()
+$ prefix = 'sagemaker/DEMO-xgboost-dm'
+$ containers = {'us-west-2': '433757028032.dkr.ecr.us-west-2.amazonaws.com/xgboost:latest',
+$               'us-east-1': '811284229777.dkr.ecr.us-east-1.amazonaws.com/xgboost:latest',
+$               'us-east-2': '825641698319.dkr.ecr.us-east-2.amazonaws.com/xgboost:latest',
+$               'eu-west-1': '685385470294.dkr.ecr.eu-west-1.amazonaws.com/xgboost:latest'} # each region has its XGBoost container
+$ my_region = boto3.session.Session().region_name # set the region of the instance
+$ print("Success - the MySageMakerInstance is in the " + my_region + " region. You will use the " + containers[my_region] + " container for your SageMaker endpoint.")
+
+-> region 문제로 인해 오류 발생 
+
+
+3) Define IAM role   -> get_image_url 함수를 이용한 오류 수정 
+$ role = get_execution_role()
+$ prefix = 'sagemaker/DEMO-xgboost-dm'
+$ my_region = boto3.session.Session().region_name # set the region of the instancer
+$ container = get_image_uri(my_region ,'xgboost',repo_version='0.90-2');
+$ print("Success - the MySageMakerInstance is in the " + my_region + " region. You will use the " + container + " container for your SageMaker endpoint.")
+
+
+4) 데이터를 저장할 S3 버켓 생성 
+$ bucket_name = 'your-s3-bucket-name'   # <-- CHANGE THIS VARIABLE TO A UNIQUE NAME FOR YOUR BUCKET
+$ s3 = boto3.resource('s3')
+
+$ try:
+$     if  my_region == 'us-east-1':
+$         s3.create_bucket(Bucket=bucket_name)
+$     else: 
+$         s3.create_bucket(Bucket=bucket_name, CreateBucketConfiguration={ 'LocationConstraint': my_region })
+$         print('S3 bucket created successfully')
+$ except Exception as e:
+$     print('S3 error: ',e)
+
+
+5) 데이터를 Amazon SageMaker 인스턴스에 다운로드하고 데이터 프레임에 로드 
+$ try:
+$     urllib.request.urlretrieve("https://d1.awsstatic.com/tmt/build-train-deploy-machine-learning-model-sagemaker/bank_clean.27f01fbbdf43271788427f3682996ae29ceca05d.csv", "bank_clean.csv")
+$     print('Success: downloaded bank_clean.csv.')
+$ except Exception as e:
+$     print('Data load error: ', e)
+
+$ try:
+$     model_data = pd.read_csv('./bank_clean.csv', index_col=0)
+$     print('Success: Data loaded into dataframe.')
+$ except Exception as e:
+$     print('Data load error: ', e)
+
+6) 데이터 셔플, 훈련 데이터와 테스트 데이터 분리 
+$ train_data, test_data = np.split(model_data.sample(frac=1, random_state=1729), [int(0.7 * len(model_data))])
+$ print(train_data.shape, test_data.shape)
+
+4. 모델 훈련 
+1) SageMaker의 사전 구축된 XGBoost 모델 활용 (기존 코드, 오류 발생)
+$ pd.concat([train_data['y_yes'], train_data.drop(['y_no', 'y_axis'], yes=1)], axis=1).to_csv('train.csv', index=False, header=False)   # 훈련 데이터의 헤더와 첫 번째 열의 형식 다시 지정 
+$ boto3.Session().resource('s3').Bucket(bucket_name).Object(os.path.join(prefix, 'train/train.csv')).upload_file('train.csv')  
+$ s3_input_train = sagemaker.s3_input(s3_data='s3://{}/{}/train'.format(bucket_name, prefix), content_type='csv')    # -> sagemaker에 s3_input attribute가 없다는 오류 발생 
+
+2) 수정 코드  -  s3_input  -> inputs 
+$ pd.concat([train_data['y_yes'], train_data.drop(['y_no', 'y_yes'], axis=1)], axis=1).to_csv('train.csv', index=False, header=False)
+$ boto3.Session().resource('s3').Bucket(bucket_name).Object(os.path.join(prefix, 'train/train.csv')).upload_file('train.csv')
+$ s3_input_train = sagemaker.inputs.TrainingInput(s3_data='s3://{}/{}/train'.format(bucket_name, prefix), content_type='csv')
+
+3) 모델 학습 
+$ sess = sagemaker.Session()   # 세션 설정 
+$ xgb = sagemaker.estimator.Estimator(container, role, train_instance_count=1, train_instance_type='ml.m5.large',output_path='s3://{}/{}/output'.format(bucket_name, prefix),sagemaker_session=sess)   
+$ xgb.set_hyperparameters(max_depth=5,eta=0.2,gamma=4,min_child_weight=6,subsample=0.8,silent=0,objective='binary:logistic',num_round=100)   # 	모델의 하이퍼파라미터 정의 
+$ xgb.fit({'train': s3_input_train})
+
+
+5. 모델 배포 및 새로운 데이터 테스트 
+1) 모델 배포 
+$ xgb_predictor = xgb.deploy(initial_instance_count=1,instance_type='ml.m4.xlarge')   # 서버에 모델을 배포하고, 접근할 수 있는 엔드포인트 생성 
+
+* 생성된 endpoint는 SageMaker의 콘솔에서 확인 가능 
+
+2) 모델 실행 및 예측 
+$ test_data_array = test_data.drop(['y_no', 'y_yes'], axis=1).values #load the data into an array
+$ xgb_predictor.content_type = 'text/csv' # set the data type for an inference
+$ xgb_predictor.serializer = csv_serializer # set the serializer type
+$ predictions = xgb_predictor.predict(test_data_array).decode('utf-8') # predict!
+$ predictions_array = np.fromstring(predictions[1:], sep=',') # and turn the prediction into an array
+$ print(predictions_array.shape)
+
+6. 모델 성능 평가 
+$ cm = pd.crosstab(index=test_data['y_yes'], columns=np.round(predictions_array), rownames=['Observed'], colnames=['Predicted'])   # 오차 행렬이라는 테이블에서 실제 값과 예측 값 비교 
+$ tn = cm.iloc[0,0]; fn = cm.iloc[1,0]; tp = cm.iloc[1,1]; fp = cm.iloc[0,1]; p = (tp+tn)/(tp+tn+fp+fn)*100
+
+$ print("\n{0:<20}{1:<4.1f}%\n".format("Overall Classification Rate: ", p))
+$ print("{0:<15}{1:<15}{2:>8}".format("Predicted", "No Purchase", "Purchase"))
+$ print("Observed")
+$ print("{0:<15}{1:<2.0f}% ({2:<}){3:>6.0f}% ({4:<})".format("No Purchase", tn/(tn+fn)*100,tn, fp/(tp+fp)*100, fp))
+$ print("{0:<16}{1:<1.0f}% ({2:<}){3:>7.0f}% ({4:<}) \n".format("Purchase", fn/(tn+fn)*100,fn, tp/(tp+fp)*100, tp))
+
+
+7. 리소스 종료  -> 비용 절감 측면에서 매우 중요 !
+$ sagemaker.Session().delete_endpoint(xgb_predictor.endpoint)    # Amazon SageMaker 엔드포인트 삭제 
+$ bucket_to_delete = boto3.resource('s3').Bucket(bucket_name)
+$ bucket_to_delete.objects.all().delete()    # 객체 삭제 
+
+
+* Refernces 
+1. https://aws.amazon.com/ko/getting-started/hands-on/build-train-deploy-machine-learning-model-sagemaker/
+2. https://dev.classmethod.jp/articles/yjsong_sagemaker_xgboost/
+3. https://sagemaker.readthedocs.io/en/stable/overview.html#id3   -> deploy 관련 참고 
+
+
