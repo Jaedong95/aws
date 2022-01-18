@@ -1,0 +1,6 @@
+1. ec2 instance 접속 
+$ ssh -i [pem file 경로] [instance name]@[public IP]
+
+2. ec2 instance에 파일 전송 
+$ scp -i [pem file 경로] [전송 대상 파일 경로] [instance name]@[public IP]:[전송할 경로] 
+

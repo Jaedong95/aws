@@ -1,0 +1,26 @@
+step 1. SageMaker instance 생성 
+
+step 2. import libraries and setting path 
+$ import boto3   # python library for calling up AWS Service 
+$ import sagemaker
+$ from sagemaker import get_execution_role
+
+$ bucket_name = 's3 bucket name'
+$ train_file_name = 'train_file.csv'   # local directory file 
+$ val_file_name = 'val_file.csv'   
+$ test_file_name = 'test_file.csv'   
+
+$ model_output_location = r's3://{0}/directory/model'.format(bucket_name)
+$ train_file_location = r's3://{0}/{1}'.format(bucket_name, train_file_name)
+$ val_file_location = r's3://{0}/{1}'.format(bucket_name, val_file_name)
+$ test_file_location = r's3://{0}/{1}'.format(bucket_name, test_file_name)
+
+step 3. define a method for writing into s3 bucket 
+$ def write_to_s3(filename, bucket, key):
+$     with open(filename, 'rb') as f:
+$         return boto3.Session().resource('s3').Bucket(bucket).Object(key).upload_fileobj(f)
+
+step 4. write to s3 
+$ write_to_s3('Train_final.csv', bucket_name, train_file_name)
+$ write_to_s3('Val_final.csv', bucket_name, val_file_name)
+$ write_to_s3('Test_final.csv', bucket_name, test_file_name)

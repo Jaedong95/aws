@@ -42,9 +42,8 @@ $ print("Success - the MySageMakerInstance is in the " + my_region + " region. Y
 
 -> region 문제로 인해 오류 발생 
 
-
 3) Define IAM role   -> get_image_url 함수를 이용한 오류 수정 
-$ role = get_execution_role()
+$ role = get_execution_role()  
 $ prefix = 'sagemaker/DEMO-xgboost-dm'
 $ my_region = boto3.session.Session().region_name # set the region of the instancer
 $ container = get_image_uri(my_region ,'xgboost',repo_version='0.90-2');
@@ -61,6 +60,7 @@ $         s3.create_bucket(Bucket=bucket_name)
 $     else: 
 $         s3.create_bucket(Bucket=bucket_name, CreateBucketConfiguration={ 'LocationConstraint': my_region })
 $         print('S3 bucket created successfully')
+
 $ except Exception as e:
 $     print('S3 error: ',e)
 
@@ -131,9 +131,35 @@ $ bucket_to_delete = boto3.resource('s3').Bucket(bucket_name)
 $ bucket_to_delete.objects.all().delete()    # 객체 삭제 
 
 
+8. s3 버켓에 업로드 한 모델 읽어와서 추론하기 
+1) sagemaker.model 사용
+$ trainedmodel = sagemaker.model.Model(
+$     model_data='s3://jaedong-sagemaker-bucket/sagemaker/DEMO-xgboost-dm/output/sagemaker-xgboost-2022-01-18-02-00-19-859/output/model.tar.gz',
+$     image_uri='366743142698.dkr.ecr.ap-northeast-2.amazonaws.com/sagemaker-xgboost:1.2-1', 
+$     role=role)  # your role here; could be different name
+
+$ predictor = trainedmodel.deploy(initial_instance_count=1, instance_type='ml.c4.xlarge')
+
+-> 해당 model은 predict() attribute가 없다고 에러 뜸 .. tensorflow 버전으로 사용할 것 
+
+2) sagemaker.tensorflow 사용 
+$ from sagemaker.tensorflow import TensorFlowModel
+
+$ model = TensorFlowModel(
+$     model_data='s3://jaedong-sagemaker-bucket/sagemaker/DEMO-xgboost-dm/output/sagemake-xgboost-2022-01-18-02-00-19-859/output/model.tar.gz',
+$     image_uri='366743142698.dkr.ecr.ap-northeast-2.amazonaws.com/sagemaker-xgboost:1.2-1'
+$     role=role)
+
+$ predictor = model.deploy(initial_instance_count=1, instance_type = 'ml.m4.xlarge')
+
+* image_uri에 들어가는 이미지 파일 값 불러오기
+$ image_uris.retrieve(framework='xgboost',region='ap-northeast-2',version='1.2-1')   
+
+
 * Refernces 
 1. https://aws.amazon.com/ko/getting-started/hands-on/build-train-deploy-machine-learning-model-sagemaker/
 2. https://dev.classmethod.jp/articles/yjsong_sagemaker_xgboost/
 3. https://sagemaker.readthedocs.io/en/stable/overview.html#id3   -> deploy 관련 참고 
-
+4. https://stackoverflow.com/questions/56255154/how-to-use-a-pretrained-model-from-s3-to-predict-some-data   # deploy 관련 참고2 
+5. https://github.com/aws/amazon-sagemaker-examples/tree/master/advanced_functionality/scikit_bring_your_own/container   # github
 
