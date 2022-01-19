@@ -62,7 +62,7 @@ $         s3.create_bucket(Bucket=bucket_name, CreateBucketConfiguration={ 'Loca
 $         print('S3 bucket created successfully')
 
 $ except Exception as e:
-$     print('S3 error: ',e)
+$     print('S3 error: ', e)
 
 
 5) 데이터를 Amazon SageMaker 인스턴스에 다운로드하고 데이터 프레임에 로드 
@@ -97,12 +97,12 @@ $ s3_input_train = sagemaker.inputs.TrainingInput(s3_data='s3://{}/{}/train'.for
 $ sess = sagemaker.Session()   # 세션 설정 
 $ xgb = sagemaker.estimator.Estimator(container, role, train_instance_count=1, train_instance_type='ml.m5.large',output_path='s3://{}/{}/output'.format(bucket_name, prefix),sagemaker_session=sess)   
 $ xgb.set_hyperparameters(max_depth=5,eta=0.2,gamma=4,min_child_weight=6,subsample=0.8,silent=0,objective='binary:logistic',num_round=100)   # 	모델의 하이퍼파라미터 정의 
-$ xgb.fit({'train': s3_input_train})
+$ xgb.fit({'train': s3_input_train})   # 모델 학습
 
 
 5. 모델 배포 및 새로운 데이터 테스트 
 1) 모델 배포 
-$ xgb_predictor = xgb.deploy(initial_instance_count=1,instance_type='ml.m4.xlarge')   # 서버에 모델을 배포하고, 접근할 수 있는 엔드포인트 생성 
+$ xgb_predictor = xgb.deploy(initial_instance_count=1,instance_type='ml.m4.xlarge', endpoint_name='jaedong-endpoint')   # 서버에 모델을 배포하고, 접근할 수 있는 엔드포인트 생성 
 
 * 생성된 endpoint는 SageMaker의 콘솔에서 확인 가능 
 
@@ -127,7 +127,7 @@ $ print("{0:<16}{1:<1.0f}% ({2:<}){3:>7.0f}% ({4:<}) \n".format("Purchase", fn/(
 
 7. 리소스 종료  -> 비용 절감 측면에서 매우 중요 !
 $ sagemaker.Session().delete_endpoint(xgb_predictor.endpoint)    # Amazon SageMaker 엔드포인트 삭제 
-$ bucket_to_delete = boto3.resource('s3').Bucket(bucket_name)
+$ bucket_to_delete = boto3.resource('s3').Bucket(bucket_name)   # 삭제할 bucket 지정
 $ bucket_to_delete.objects.all().delete()    # 객체 삭제 
 
 
@@ -140,7 +140,11 @@ $     role=role)  # your role here; could be different name
 
 $ predictor = trainedmodel.deploy(initial_instance_count=1, instance_type='ml.c4.xlarge')
 
--> 해당 model은 predict() attribute가 없다고 에러 뜸 .. tensorflow 버전으로 사용할 것 
+-> 해당 model은 predict() attribute가 없다고 에러 뜸 .. 
+
+* 2022.01.19 해결: trainedmodel: sagemaker.model.Model 타입. model deploy를 하면 predictor 클래스 반환되어야 함 .. Bt predictor 조회 시 None type 조회됨 
+
+trainedModel = sagemaker.model.Model()   # trainedModel: sagemaker.model.Model at 0x7f40ad0c840
 
 2) sagemaker.tensorflow 사용 
 $ from sagemaker.tensorflow import TensorFlowModel
@@ -151,6 +155,15 @@ $     image_uri='366743142698.dkr.ecr.ap-northeast-2.amazonaws.com/sagemaker-xgb
 $     role=role)
 
 $ predictor = model.deploy(initial_instance_count=1, instance_type = 'ml.m4.xlarge')
+
+-> TensorflowModel은 이후 predict().decode() 부분에서 원인 불명 오류 뜸 .. 파일 구조 달라진 것 없는데도 계속 오류 떠서 해당 방법은 사용하면 x
+
+3) sagemaker.Predictor 사용 
+$ xgb_ep = sagemaker.Predictor('jaedong-endpoint')   # sagemaker.Predictor( '5-1)에서 설정한 endpoint 이름' )
+
+$ xgb_ep   # 해당 모델을 사용하여 predict().decode() 등 수행 시 오류가 더 이상 발생하지 않는다.
+
+!!! 모델을 읽어와서 추론할 때는 sagemaker의 predictor 라이브러리를 이용할 것 !! 
 
 * image_uri에 들어가는 이미지 파일 값 불러오기
 $ image_uris.retrieve(framework='xgboost',region='ap-northeast-2',version='1.2-1')   
