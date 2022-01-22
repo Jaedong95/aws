@@ -1,0 +1,78 @@
+1. aws ec2 instance 생성 및 접속
+
+
+2. 기본적인 설정 
+$ sudo apt-get update 
+$ sudo apt-get install pkg-config
+$ sudo apt-get install cmake
+$ sudo apt-get install m4 
+
+
+3. 다운로드 
+$ git clone https://github.com/awslabs/amazon-kinesis-video-streams-producer-sdk-cpp.git
+
+
+4. 디렉토리 생성 및 이동
+$ mkdir -p amazon-kinesis-video-streams-producer-sdk-cpp/build
+$ cd amazon-kinesis-video-streams-producer-sdk-cpp/build
+
+
+5. 필요 라이브러리 설치
+$ sudo apt-get install libssl-dev libcurl4-openssl-dev liblog4cplus-dev libgstreamer1.0-dev libgstreamer-plugins-base1.0-dev gstreamer1.0-plugins-base-apps gstreamer1.0-plugins-bad gstreamer1.0-plugins-good gstreamer1.0-plugins-ugly gstreamer1.0-tools
+
+
+6. 디렉토리 이동 
+$ cd .. 
+
+
+7. JNI 설치 
+$ cmake -DBUILD_JNI=TRUE
+
+* could not find JNI error가 발생하는 경우  -> export JAVA_INCLUDE_PATH2='/usr/java/<JDK_VERSION>/include'
+
+
+8. Gstreamer plugin 설치 사전 작업 
+$ sudo apt-get install -y openjdk-8-jdk
+$ sudo apt-get install -y default-jdk
+$ export JAVA_HOME=/usr/lib/jvm/java-8-openjdk-amd64
+
+
+9. 디렉토리 이동
+$ cd build
+
+
+10. Gstreamer plugin 설치  
+$ cmake -DBUILD_GSTREAMER_PLUGIN=TRUE ..
+
+
+11. 디렉토리 이동
+$ cd ..
+
+
+12. file make 
+$ make 
+
+
+13. path setting 
+$ export GST_PLUGIN_PATH=`pwd`
+$ export LD_LIBRARY_PATH=`pwd`/open-source/local/lib
+
+
+14. plugin information check 
+$ gst-inspect-1.0 kvssink
+
+
+15. AWS_ACCESS_KEY, AWS_SECRET_KEY setting
+$ export AWS_ACCESS_KEY_ID=AKIA4Q5UCPKXXDZ7QXEQ
+$ export AWS_SECRET_KEY=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
+
+
+16. 가능한 media device 조회 
+$ sudo gst-device-monitor-1.0
+
+
+17. audio drivers 설치 
+$ apt-get install libasound2-dev
+
+
+18. 
