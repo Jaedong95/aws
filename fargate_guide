@@ -1,0 +1,84 @@
+1. ec2 인스턴스에 Docker 설치 
+1) ec2 인스턴스 접속 
+
+2) docker 파일 다운로드
+$ curl -fsSL https://get.docker.com -o get-docker.sh
+
+3) Docker Engine 패키지 설치 
+$ sudo sh get-docker.sh 
+
+* docker -V를 통해 설치된 docker 버전을 조회 할 수 있음 
+
+4) docker start 
+$ sudo service docker start 
+
+5) docker 그룹에 sudo 추가
+$ sudo usermod -a -G docker ubuntu
+
+* ubuntu (ec2-user)를 사용하지 않고도 docker command 실행 가능 
+
+2. Docker 이미지 생성 및 실행 
+1) Dockerfile 파일 생성 
+$ touch Dockerfile 
+
+* Dockerfile: 도커 이미지에 사용할 기본 이미지 및 이를 설치하고 실행할 항목을 설명하는 매니페스트
+
+2) Dockerfile 수정 
+$ vi Docker file 
+
+3) 다음 내용을 붙여넣기함
+FROM ubuntu:18.04
+
+# Install dependencies
+RUN apt-get update && \
+ apt-get -y install apache2
+
+# Install apache and write hello world message
+RUN echo 'Hello World!' > /var/www/html/index.html
+
+# Configure apache
+RUN echo '. /etc/apache2/envvars' > /root/run_apache.sh && \
+ echo 'mkdir -p /var/run/apache2' >> /root/run_apache.sh && \
+ echo 'mkdir -p /var/lock/apache2' >> /root/run_apache.sh && \ 
+ echo '/usr/sbin/apache2 -D FOREGROUND' >> /root/run_apache.sh && \ 
+ chmod 755 /root/run_apache.sh
+
+EXPOSE 80
+
+CMD /root/run_apache.sh
+
+4) Dockerfile이 존재하는 경로에서 도커 이미지 빌드 
+$ docker build -t hello-world .
+
+5) 생성한 이미지 조회
+$ docker images --filter reference=hello-world
+
+6) 빌드한 이미지 실행 
+$ docker run -t -i -p 80:80 hello-world
+
+* Apache 웹 서버로부터의 출력이 터미널 창에 표시되는데, 
+ "Could not reliably determine the server's fully qualified domain name" 메시지는 무시해도 됨
+
+7) 브라우저에서 도커 접속 
+- 실행중인 ec2 인스턴스의 보안 그룹 -> 인바운드 규칙에서 유형: TCP (HTTP), 포트범위: 80, 소스: anywher IPv4 규칙 추가 
+
+- 브라우저에 public IP 입력하여 접속 
+
+3. Amazon Elastic Container Registry에 이미지 푸시 
+1) hello-world 이미지를 저장할 Amazon ECR 리포지토리 생성 
+$ aws ecr create-repository --repository-name hello-repository --region [region] (ap-northeast-1) 
+
+2) hello-world 이미지를 위에서 얻은 repositoryUri 값으로 태그 지정 
+$ sudo docker tag hello-world [aws_id].dkr.ecr.[region].amazonaws.com/hello-repository
+
+3) 인증할 레지스트리 URI 지정 
+$ aws ecr get-login-password | docker login --username AWS --password-stdin [aws_account_id].dkr.ecr.[region].amazonaws.com
+
+* login succeed가 나오면 성공 
+
+4) 이전 단계의 repository uri 값을 사용하여 Amazon ECR로 이미지 푸쉬 
+$ docker push [aws_account_id].dkr.ecr.[region].amazonaws.com/hello-repository
+
+4. 리포지토리 삭제 
+$ aws ecr delete-repository --repository-name hello-repository --region [region] --force
+

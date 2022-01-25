@@ -18,6 +18,12 @@ $ sudo ./aws/install
 $ aws --version
 
 
+3) 기본 명령어
+$ aws sts get-caller-identity   # 계정 번호를 포함한 기본 계정 정보 
+$ aws sts get-caller-identity --profile prod   # 특정 프로필의 계정에 대한 게정 정보 
+$ aws configure get region   # 기본 영역 표시
+
+
 ------------------------------------------------------------------------  일단 여기까지만 하자. 
 3) configure setting
 $ aws configure 
