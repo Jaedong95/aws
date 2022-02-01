@@ -1,0 +1,50 @@
+[공통]
+1. aws cli 설치, configure setting 
+
+2. ec2 instance IAM 권한 부여 (IAM Role: S3FullAccess)
+
+[s3fs-fuse]
+1. installation
+$ git clone https://github.com/s3fs-fuse/s3fs-fuse.git
+$ cd s3fs-fuse/
+$ ./autogen.sh 
+$ ./configure
+$ make
+
+2. configuration
+$ echo YOURACCESSKEY:YOURSECRETKEY > /etc/passwd-s3fs
+$ chmod 600 /etc/passwd-s3fs
+
+3. mount directory create 
+$ mkdir -p /s3fs
+
+4. s3fs mount 
+$ which s3fs 
+$ /usr/bin/s3fs [s3 bucket name] [mount directory (ec2)] 
+
+해당 디렉토리로 이동하여 ls 명령어를 입력하면 s3 bucket의 파일들이 해당 디렉토리에 저장된 것을 볼 수 있다.
+
+4. unmount directory 
+$ sudo umount -l [mount directory (ec2)]
+
+-> 해당 디렉토리 파일 내용들이 모두 사라진 것을 확인할 수 있다.
+
+[normal]
+1. file upload (ec2 -> s3) 
+$ aws s3 cp [source file name] s3://[destination bucket name]/[destination file name] 
+	
+* 해당 명령어 뒤에 --acl public-read option을 지정하면 업로드하는 파일을 모두가 볼 수 있다.
+  --recursive option을 지정하면 폴더 업로드 가능 
+
+2. file download (s3 -> ec2) 
+$ aws s3 cp s3://[source bucket name]/[source file name] [destination file name] 
+
+3. sync 
+$ aws s3 sync s3://[source bucket name] [destination directory] 
+
+[python]
+$ import boto3 
+
+$ s3_client = boto3.client('s3')
+$ s3_client.upload_file('source file name', 'bucket name', 'destination file name')   # source: to upload, destiantion: to download
+$ s3_client.download_file('bucket name', 'source file name', 'destination file name')   # source: to download, destination: ec2 
